@@ -42,7 +42,6 @@ export class RioLogWindowView extends EventEmitter implements IWindowView {
     return true;
   }
 
-  // tslint:disable-next-line:no-empty
   public dispose() {
 
   }
