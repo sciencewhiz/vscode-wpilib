@@ -6,6 +6,7 @@ import { IPreferences } from 'vscode-wpilibapi';
 import { localize as i18n } from './locale';
 import { IPreferencesJson } from './shared/preferencesjson';
 import { existsAsync, mkdirAsync, readFileAsync, writeFileAsync } from './utilities';
+import { logger } from './logger';
 
 const defaultPreferences: IPreferencesJson = {
   currentLanguage: 'none',
@@ -75,10 +76,12 @@ export class Preferences implements IPreferences {
     this.configFileWatcher.onDidDelete(async () => {
       const configFilePath = Preferences.getPrefrencesFilePath(this.workspace.uri.fsPath);
       if (await existsAsync(configFilePath)) {
+        logger.log('OnDelete: Recovered');
         await vscode.commands.executeCommand('setContext', 'isWPILibProject', true);
         this.isWPILibProject = true;
         this.preferencesFile = vscode.Uri.file(configFilePath);
       } else {
+        logger.log('OnDelete: Failed');
         await vscode.commands.executeCommand('setContext', 'isWPILibProject', false);
         this.isWPILibProject = false;
         this.preferencesFile = undefined;
@@ -87,6 +90,7 @@ export class Preferences implements IPreferences {
     });
 
     this.configFileWatcher.onDidChange(async () => {
+      logger.log('OnChange: Good');
       await this.updatePreferences();
     });
   }
