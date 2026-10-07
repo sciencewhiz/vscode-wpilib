@@ -2,6 +2,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
+import { getOperatingSystemDescription } from '../projectinfo';
 import { getWPILibHomeDirForPlatform, getWPILibYear } from '../shared/utilitiesapi';
 
 suite('Utilities API Tests', () => {
@@ -49,5 +50,11 @@ suite('Utilities API Tests', () => {
       getWPILibHomeDirForPlatform('win32', homeDir, { PUBLIC: 'C:\\Users\\Public' }),
       path.join('C:\\Users\\Public', 'wpilib', year)
     );
+  });
+
+  test('Operating system description includes platform and release', () => {
+    assert.strictEqual(getOperatingSystemDescription('win32', '10.0.26100'), 'Windows 10.0.26100');
+    assert.strictEqual(getOperatingSystemDescription('linux', '6.8.0'), 'Linux 6.8.0');
+    assert.strictEqual(getOperatingSystemDescription('darwin', '23.4.0'), 'macOS 23.4.0');
   });
 });

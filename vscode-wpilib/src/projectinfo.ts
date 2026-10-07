@@ -2,6 +2,7 @@
 
 import { readFile } from 'fs/promises';
 import * as json from 'jsonc-parser';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { IExternalAPI } from './api';
@@ -24,11 +25,32 @@ export interface IVscodeExtension {
 export interface IProjectInfo {
   wpilibProjectVersion: string;
   wpilibExtensionVersion: string;
+  operatingSystem: string;
   vendorLibraries: IVendorLibraryPair[];
   vscodeExtensions: IVscodeExtension[];
   mavenRepositories: Set<string>;
   wpilibProjectYear: string;
   wpilibLanguage: string;
+}
+
+export function getOperatingSystemDescription(
+  platform: NodeJS.Platform = process.platform,
+  release: string = os.release()
+): string {
+  const version = release || 'unknown';
+
+  switch (platform) {
+    case 'win32':
+      return `Windows ${version}`;
+    case 'darwin':
+      return `macOS ${version}`;
+    case 'linux':
+      return `Linux ${version}`;
+    default: {
+      const name = platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : 'Unknown';
+      return `${name} ${version}`;
+    }
+  }
 }
 
 const wpilibExtensionIds = {
@@ -120,6 +142,7 @@ export class ProjectInfoGatherer {
 
     const infoString = `WPILib Information:
 Project Version: ${projectInfo.wpilibProjectVersion}
+Operating System: ${projectInfo.operatingSystem}
 VS Code Version: ${vscode.version}
 WPILib Extension Version: ${projectInfo.wpilibExtensionVersion}
 Project Year: ${projectInfo.wpilibProjectYear}
@@ -199,6 +222,7 @@ Note: URLs are based on standard WPILib build.gradle and vendordeps used in the 
       mavenRepositories: new Set(vendorLibs.flatMap((lib) => lib.mavenUrls ?? [])),
       wpilibExtensionVersion: currentVsCodeVersion,
       wpilibProjectVersion: currentGradleVersion,
+      operatingSystem: getOperatingSystemDescription(),
       wpilibProjectYear: currentProjectYear,
       wpilibLanguage: currentLanguage,
     };
