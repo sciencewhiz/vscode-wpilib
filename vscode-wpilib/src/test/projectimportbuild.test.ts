@@ -398,6 +398,72 @@ const HATCHBOT_INLINED_CPP_2027_ALPHA_5: CppImportTestConfig = {
   ],
 };
 
+const SWERVE_BOT_2026: JavaImportTestConfig = {
+  language: 'java',
+  version: '2026.2.1',
+  exampleFolderName: 'swervebot',
+  exampleName: 'SwerveBot',
+  examplePackage: 'edu.wpi.first.wpilibj.examples.swervebot',
+  robotMainClass: 'org.wpilib.examples.swervebot.Robot',
+  expectedImportedPackage: 'org.wpilib.examples.swervebot',
+  expectedCompilerErrors: [
+    'compiler.err.cant.resolve.location: src/main/java/edu/wpi/first/wpilibj/examples/swervebot/Drivetrain.java:12: error: cannot find symbol\nimport org.wpilib.AnalogGyro;\n                 ^\n  symbol:   class AnalogGyro\n  location: package org.wpilib',
+    'compiler.err.cant.resolve.location: src/main/java/edu/wpi/first/wpilibj/examples/swervebot/SwerveModule.java:12: error: cannot find symbol\nimport org.wpilib.math.kinematics.SwerveModuleState;\n                                 ^\n  symbol:   class SwerveModuleState\n  location: package org.wpilib.math.kinematics',
+    'compiler.err.cant.resolve.location: src/main/java/edu/wpi/first/wpilibj/examples/swervebot/Drivetrain.java:29: error: cannot find symbol\n  private final AnalogGyro m_gyro = new AnalogGyro(0);\n                ^\n  symbol:   class AnalogGyro\n  location: class Drivetrain',
+    'compiler.err.cant.resolve.location: src/main/java/edu/wpi/first/wpilibj/examples/swervebot/SwerveModule.java:90: error: cannot find symbol\n  public SwerveModuleState getState() {\n         ^\n  symbol:   class SwerveModuleState\n  location: class SwerveModule',
+    'compiler.err.cant.resolve.location: src/main/java/edu/wpi/first/wpilibj/examples/swervebot/SwerveModule.java:110: error: cannot find symbol\n  public void setDesiredState(SwerveModuleState desiredState) {\n                              ^\n  symbol:   class SwerveModuleState\n  location: class SwerveModule',
+  ],
+};
+
+const SWERVE_BOT_2027_ALPHA_7: JavaImportTestConfig = {
+  language: 'java',
+  version: '2027.0.0-alpha-7',
+  exampleFolderName: 'swervebot',
+  exampleName: 'SwerveBot',
+  examplePackage: 'org.wpilib.examples.swervebot',
+  robotMainClass: 'first.robot.Robot',
+  expectedImportedPackage: 'first.robot',
+  expectedCompilerErrors: [],
+};
+
+const SWERVE_BOT_2027_ALPHA_5: JavaImportTestConfig = {
+  language: 'java',
+  version: '2027.0.0-alpha-5',
+  exampleFolderName: 'swervebot',
+  exampleName: 'SwerveBot',
+  examplePackage: 'org.wpilib.examples.swervebot',
+  robotMainClass: 'first.robot.Robot',
+  expectedImportedPackage: 'first.robot',
+  expectedCompilerErrors: [],
+};
+
+const SWERVE_BOT_CPP_2026: CppImportTestConfig = {
+  language: 'cpp',
+  version: '2026.2.1',
+  exampleFolderName: 'SwerveBot',
+  exampleName: 'SwerveBot',
+  expectedCompilerErrors: [
+    'src/main/include/Drivetrain.h:9:10: fatal error: wpi/AnalogGyro.hpp: No such file or directory',
+    'src/main/include/SwerveModule.h:14:10: fatal error: wpi/math/kinematics/SwerveModuleState.hpp: No such file or directory',
+  ],
+};
+
+const SWERVE_BOT_CPP_2027_ALPHA_7: CppImportTestConfig = {
+  language: 'cpp',
+  version: '2027.0.0-alpha-7',
+  exampleFolderName: 'SwerveBot',
+  exampleName: 'SwerveBot',
+  expectedCompilerErrors: [],
+};
+
+const SWERVE_BOT_CPP_2027_ALPHA_5: CppImportTestConfig = {
+  language: 'cpp',
+  version: '2027.0.0-alpha-5',
+  exampleFolderName: 'SwerveBot',
+  exampleName: 'SwerveBot',
+  expectedCompilerErrors: [],
+};
+
 async function extractArchive(
   archiveUrl: string,
   version: ExampleVersion,
@@ -1020,6 +1086,42 @@ suite('Project Import Build Tests', () => {
       test('2027.0.0-alpha-5 imports and builds', async function () {
         this.timeout(2 * 60 * 1000);
         await runImportTest(HATCHBOT_INLINED_CPP_2027_ALPHA_5);
+      });
+    });
+  });
+
+  suite('SwerveBot', () => {
+    suite('Java', () => {
+      test('2026.2.1 imports and builds', async function () {
+        this.timeout(1 * 60 * 1000);
+        await runImportTest(SWERVE_BOT_2026);
+      });
+
+      test('2027.0.0-alpha-7 imports and builds', async function () {
+        this.timeout(1 * 60 * 1000);
+        await runImportTest(SWERVE_BOT_2027_ALPHA_7);
+      });
+
+      test('2027.0.0-alpha-5 imports and builds', async function () {
+        this.timeout(1 * 60 * 1000);
+        await runImportTest(SWERVE_BOT_2027_ALPHA_5);
+      });
+    });
+
+    suite('C++', () => {
+      test('2026.2.1 imports and builds', async function () {
+        this.timeout(2 * 60 * 1000);
+        await runImportTest(SWERVE_BOT_CPP_2026);
+      });
+
+      test('2027.0.0-alpha-7 imports and builds', async function () {
+        this.timeout(2 * 60 * 1000);
+        await runImportTest(SWERVE_BOT_CPP_2027_ALPHA_7);
+      });
+
+      test('2027.0.0-alpha-5 imports and builds', async function () {
+        this.timeout(2 * 60 * 1000);
+        await runImportTest(SWERVE_BOT_CPP_2027_ALPHA_5);
       });
     });
   });
