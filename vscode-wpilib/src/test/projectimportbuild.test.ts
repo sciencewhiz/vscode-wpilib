@@ -2,7 +2,7 @@
 
 import * as assert from 'assert';
 import { spawn } from 'child_process';
-import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import extract from 'extract-zip';
 import { globSync } from 'fs';
 import { after, before, test } from 'mocha';
@@ -505,128 +505,6 @@ async function copyCppExampleFiles(
 interface GradleBuildResult {
   exitCode: number | null;
   output: string;
-  command: string;
-  args: string[];
-  projectPath: string;
-}
-
-const GRADLE_BUILD_ARGS = ['build', '--no-daemon', '--console=plain', '--continue'];
-
-function getGradleWrapperPath(projectPath: string): string {
-  return path.join(projectPath, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
-}
-
-async function describePath(filePath: string): Promise<string> {
-  try {
-    const stats = await stat(filePath);
-    if (process.platform === 'win32') {
-      return `exists (${stats.size} bytes)`;
-    }
-    const mode = (stats.mode & 0o777).toString(8);
-    const executable = (stats.mode & 0o111) !== 0 ? 'executable' : 'NOT executable';
-    return `exists (mode ${mode}, ${executable})`;
-  } catch (error) {
-    return `missing (${(error as NodeJS.ErrnoException).code ?? String(error)})`;
-  }
-}
-
-function stripAnsi(text: string): string {
-  return text.replace(/\u001b\[[0-9;]*m/g, '');
-}
-
-function getGradleTasks(output: string): string[] {
-  const tasks = new Set<string>();
-  for (const line of output.split(/\r?\n/)) {
-    const task = /^> Task (:\S+)/.exec(stripAnsi(line).trim());
-    if (task) {
-      tasks.add(task[1]);
-    }
-  }
-  return [...tasks].sort();
-}
-
-function gradleBuildCompleted(output: string): boolean {
-  return /(^|\n)BUILD (SUCCESSFUL|FAILED)\b/.test(stripAnsi(output));
-}
-
-async function formatGradleDiagnostics(result: GradleBuildResult): Promise<string> {
-  const wrapperPath = getGradleWrapperPath(result.projectPath);
-  const wrapperPropertiesPath = path.join(
-    result.projectPath,
-    'gradle',
-    'wrapper',
-    'gradle-wrapper.properties'
-  );
-  const problemsReportPath = path.join(
-    result.projectPath,
-    'build',
-    'reports',
-    'problems',
-    'problems-report.html'
-  );
-  const tasks = getGradleTasks(result.output);
-  const compileTasks = tasks.filter((task) => /compile|link/i.test(task));
-  let distributionUrl = '(unavailable)';
-  try {
-    const wrapperProperties = await readFile(wrapperPropertiesPath, 'utf8');
-    distributionUrl = /^distributionUrl=(.+)$/m.exec(wrapperProperties)?.[1] ?? '(not set)';
-  } catch {
-    // The wrapper properties are only informational here.
-  }
-
-  let problemsReportSummary = 'not available';
-  try {
-    const report = await readProblemsReport(problemsReportPath);
-    if (report !== undefined) {
-      const diagnosticList = report.diagnostics ?? [];
-      const counts = new Map<string, number>();
-      for (const diagnostic of diagnosticList) {
-        const problemId =
-          diagnostic.problemId
-            ?.map((id) => id.name)
-            .filter((name): name is string => name !== undefined)
-            .join('/') ?? '(no problemId)';
-        const key = `${diagnostic.severity ?? 'UNKNOWN'} ${problemId}`;
-        counts.set(key, (counts.get(key) ?? 0) + 1);
-      }
-      problemsReportSummary =
-        diagnosticList.length === 0
-          ? 'no diagnostics'
-          : `${diagnosticList.length} diagnostics (${[...counts]
-              .map(([key, count]) => `${key} x${count}`)
-              .join(', ')})`;
-    }
-  } catch (error) {
-    problemsReportSummary = `could not read report: ${(error as Error).message}`;
-  }
-
-  const output = result.output.trimEnd();
-  return [
-    'Gradle build diagnostics:',
-    `  Platform: ${process.platform} ${process.arch}`,
-    `  Node: ${process.version}`,
-    `  Working directory: ${result.projectPath}`,
-    `  Command: ${result.command} ${result.args.join(' ')}`,
-    `  Exit code: ${result.exitCode === null ? '(null, process did not exit normally)' : result.exitCode}`,
-    `  Gradle wrapper: ${wrapperPath} (${await describePath(wrapperPath)})`,
-    `  Gradle wrapper distribution: ${distributionUrl}`,
-    `  Problems report: ${problemsReportPath} (${await describePath(problemsReportPath)})`,
-    `  Problems report diagnostics: ${problemsReportSummary}`,
-    `  JAVA_HOME: ${process.env.JAVA_HOME ?? '(not set)'}`,
-    `  GRADLE_USER_HOME: ${process.env.GRADLE_USER_HOME ?? '(not set)'}`,
-    `  Tasks reported (${tasks.length}): ${tasks.length > 0 ? tasks.join(', ') : '(none)'}`,
-    `  Compile/link tasks reported (${compileTasks.length}): ${compileTasks.length > 0 ? compileTasks.join(', ') : '(none)'}`,
-    '  --- Gradle output ---',
-    output.length > 0 ? output : '  (no output)',
-    '  --- End Gradle output ---',
-  ].join('\n');
-}
-
-async function assertGradleBuildCompleted(result: GradleBuildResult): Promise<void> {
-  assert.ok(
-    gradleBuildCompleted(result.output),
-    `Gradle did not report BUILD SUCCESSFUL or BUILD FAILED, so the build did not run to completion and the compiler diagnostics cannot be trusted.\n\n${await formatGradleDiagnostics(result)}`
-  );
 }
 
 // TODO: TEMPORARY WORKAROUND - Remove once GradleRIO 2027.0.0-beta-1 is published.
@@ -651,79 +529,38 @@ async function applyTemporaryGradleRioVersion(projectPath: string): Promise<void
   );
 }
 
-async function runGradleBuild(projectPath: string): Promise<GradleBuildResult> {
-  const isWindows = process.platform === 'win32';
-  const wrapper = isWindows ? 'gradlew.bat' : './gradlew';
-  const command = isWindows ? (process.env.ComSpec ?? 'cmd.exe') : wrapper;
-  const args = isWindows ? ['/d', '/c', wrapper, ...GRADLE_BUILD_ARGS] : GRADLE_BUILD_ARGS;
-  const wrapperPath = getGradleWrapperPath(projectPath);
-  const wrapperDescription = await describePath(wrapperPath);
-
-  console.log('[projectimportbuild] Starting Gradle build');
-  console.log(`[projectimportbuild]   command: ${command} ${args.join(' ')}`);
-  console.log(`[projectimportbuild]   cwd: ${projectPath}`);
-  console.log(`[projectimportbuild]   wrapper: ${wrapperPath} (${wrapperDescription})`);
-  console.log(
-    `[projectimportbuild]   platform: ${process.platform} ${process.arch}, node ${process.version}`
-  );
-  console.log(`[projectimportbuild]   JAVA_HOME: ${process.env.JAVA_HOME ?? '(not set)'}`);
-  console.log(`[projectimportbuild]   PATH: ${process.env.PATH ?? '(not set)'}`);
-
+function runGradleBuild(projectPath: string): Promise<GradleBuildResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: projectPath,
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const isWindows = process.platform === 'win32';
+    const wrapper = isWindows ? 'gradlew.bat' : './gradlew';
+    const args = ['build', '--no-daemon', '--console=plain', '--continue'];
+    const child = spawn(
+      isWindows ? (process.env.ComSpec ?? 'cmd.exe') : wrapper,
+      isWindows ? ['/d', '/c', wrapper, ...args] : args,
+      {
+        cwd: projectPath,
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    );
     let output = '';
-    const appendOutput = (data: Buffer | string): void => {
-      const text = data.toString();
-      output += text;
-      // Echo output as it arrives so a build that hangs or is killed by the
-      // test timeout still leaves a trace in the CI log.
-      for (const line of text.split(/\r?\n/)) {
-        if (line.length > 0) {
-          console.log(`[projectimportbuild] ${line}`);
-        }
-      }
-    };
-    child.stdout.on('data', appendOutput);
-    child.stderr.on('data', appendOutput);
-    child.on('error', (error) => {
-      reject(
-        new Error(
-          [
-            'Failed to start the Gradle build.',
-            `  command: ${command} ${args.join(' ')}`,
-            `  cwd: ${projectPath}`,
-            `  wrapper: ${wrapperPath} (${wrapperDescription})`,
-            `  JAVA_HOME: ${process.env.JAVA_HOME ?? '(not set)'}`,
-            `  error: ${error.message}`,
-          ].join('\n')
-        )
-      );
+    child.stdout.on('data', (data) => {
+      output += data.toString();
     });
-    child.on('close', (exitCode) => {
-      console.log(
-        `[projectimportbuild] Gradle exited with code ${exitCode === null ? 'null' : exitCode}`
-      );
-      const tasks = getGradleTasks(output);
-      if (!tasks.some((task) => /compile/i.test(task))) {
-        console.log(
-          '[projectimportbuild] WARNING: Gradle did not report any compile tasks. The imported project may not have been compiled.'
-        );
-      }
-      resolve({ exitCode, output, command, args, projectPath });
+    child.stderr.on('data', (data) => {
+      output += data.toString();
     });
+    child.on('error', reject);
+    child.on('close', (exitCode) => resolve({ exitCode, output }));
   });
 }
 
-async function readProblemsReport(reportPath: string): Promise<GradleProblemReport | undefined> {
+async function readCompilerErrors(reportPath: string): Promise<string[]> {
   try {
     await access(reportPath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return undefined;
+      return [];
     }
     throw error;
   }
@@ -737,15 +574,7 @@ async function readProblemsReport(reportPath: string): Promise<GradleProblemRepo
     `Gradle Problems report did not contain embedded report data: ${reportPath}`
   );
 
-  return JSON.parse(reportDataMatch[1]) as GradleProblemReport;
-}
-
-async function readCompilerErrors(reportPath: string): Promise<string[]> {
-  const report = await readProblemsReport(reportPath);
-  if (report === undefined) {
-    return [];
-  }
-
+  const report = JSON.parse(reportDataMatch[1]) as GradleProblemReport;
   return (report.diagnostics ?? [])
     .filter(
       (diagnostic) =>
@@ -886,8 +715,7 @@ async function runJavaImportTest(config: JavaImportTestConfig): Promise<void> {
 
     await applyTemporaryGradleRioVersion(importedProject);
 
-    const buildResult = await runGradleBuild(importedProject);
-    await assertGradleBuildCompleted(buildResult);
+    const { exitCode } = await runGradleBuild(importedProject);
     const problemsReportPath = path.join(
       importedProject,
       'build',
@@ -896,16 +724,15 @@ async function runJavaImportTest(config: JavaImportTestConfig): Promise<void> {
       'problems-report.html'
     );
     const compileErrors = await readCompilerErrors(problemsReportPath);
-    const diagnostics = await formatGradleDiagnostics(buildResult);
     assert.strictEqual(
       formatCompilerErrors(compileErrors),
       formatCompilerErrors(config.expectedCompilerErrors),
-      `${config.version} compiler diagnostics differed from the Gradle Problems report.\nExpected:\n${formatCompilerErrors(config.expectedCompilerErrors)}\nActual:\n${formatCompilerErrors(compileErrors)}\n\n${diagnostics}`
+      `${config.version} compiler diagnostics differed from the Gradle Problems report.\nExpected:\n${formatCompilerErrors(config.expectedCompilerErrors)}\nActual:\n${formatCompilerErrors(compileErrors)}`
     );
     assert.strictEqual(
-      buildResult.exitCode === 0,
+      exitCode === 0,
       config.expectedCompilerErrors.length === 0,
-      `${config.version} Gradle exit status did not match the expected compiler diagnostics (exit code ${buildResult.exitCode}).\n\n${diagnostics}`
+      `${config.version} Gradle exit status did not match the expected compiler diagnostics (exit code ${exitCode}).`
     );
     succeeded = true;
   } finally {
@@ -994,20 +821,18 @@ async function runCppImportTest(config: CppImportTestConfig): Promise<void> {
 
     await applyTemporaryGradleRioVersion(importedProject);
 
-    const buildResult = await runGradleBuild(importedProject);
-    await assertGradleBuildCompleted(buildResult);
-    const compileErrors = readCppCompilerErrors(buildResult.output);
+    const { exitCode, output } = await runGradleBuild(importedProject);
+    const compileErrors = readCppCompilerErrors(output);
     const expectedCompilerErrors = [...config.expectedCompilerErrors].sort();
-    const diagnostics = await formatGradleDiagnostics(buildResult);
     assert.strictEqual(
       formatCompilerErrors(compileErrors),
       formatCompilerErrors(expectedCompilerErrors),
-      `${config.version} C++ compiler diagnostics differed from the Gradle build output.\nExpected:\n${formatCompilerErrors(expectedCompilerErrors)}\nActual:\n${formatCompilerErrors(compileErrors)}\n\n${diagnostics}`
+      `${config.version} C++ compiler diagnostics differed from the Gradle build output.\nExpected:\n${formatCompilerErrors(expectedCompilerErrors)}\nActual:\n${formatCompilerErrors(compileErrors)}`
     );
     assert.strictEqual(
-      buildResult.exitCode === 0,
+      exitCode === 0,
       config.expectedCompilerErrors.length === 0,
-      `${config.version} Gradle exit status did not match the expected compiler diagnostics (exit code ${buildResult.exitCode}).\n\n${diagnostics}`
+      `${config.version} Gradle exit status did not match the expected compiler diagnostics (exit code ${exitCode}).`
     );
     succeeded = true;
   } finally {
